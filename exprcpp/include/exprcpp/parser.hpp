@@ -19,9 +19,9 @@ namespace exprcpp::internal
 		auto expect_token(token_type_e type) -> bool;
 		auto expect_token(token_type_e type, token_ptr_t& token) -> bool;
 
-		auto is_memoized(int type) -> bool;
-		auto insert_memo(size_t mark, int type) -> bool;
-		auto update_memo(size_t mark, int type) -> bool;
+		auto is_memoized(int type, int& pres) -> bool;
+		auto insert_memo(size_t mark, int type, int& node) -> bool;
+		auto update_memo(size_t mark, int type, int& node) -> bool;
 
 		auto rule_statement() -> int;
 		auto rule_expression() -> int;

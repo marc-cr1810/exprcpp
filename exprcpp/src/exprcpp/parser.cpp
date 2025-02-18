@@ -67,7 +67,7 @@ namespace exprcpp::internal
 		return true;
 	}
 
-	auto parser_t::is_memoized(int type) -> bool
+	auto parser_t::is_memoized(int type, int& pres) -> bool
 	{
 		if (m_mark == m_tokens.size())
 		{
@@ -84,13 +84,14 @@ namespace exprcpp::internal
 			if (memo->type == type)
 			{
 				m_mark = memo->mark;
+				pres = memo->node;
 				return true;
 			}
 		}
 		return false;
 	}
 
-	auto parser_t::insert_memo(size_t mark, int type) -> bool
+	auto parser_t::insert_memo(size_t mark, int type, int& node) -> bool
 	{
 		auto memo = std::make_shared<memo_t>();
 		if (memo == nullptr)
@@ -98,23 +99,25 @@ namespace exprcpp::internal
 			return false;
 		}
 		memo->type = type;
+		memo->node = node;
 		memo->mark = mark;
 		memo->next = m_tokens[mark]->memo;
 		m_tokens[mark]->memo = memo;
 		return true;
 	}
 
-	auto parser_t::update_memo(size_t mark, int type) -> bool
+	auto parser_t::update_memo(size_t mark, int type, int& node) -> bool
 	{
 		for (auto memo = m_tokens[mark]->memo; memo != nullptr; memo = memo->next)
 		{
 			if (memo->type == type)
 			{
+				memo->node = node;
 				memo->mark = m_mark;
 				return true;
 			}
 		}
-		return insert_memo(mark, type);
+		return insert_memo(mark, type, node);
 	}
 
 	auto parser_t::rule_statement() -> int
@@ -210,7 +213,7 @@ namespace exprcpp::internal
 	auto parser_t::rule_sum() -> int
 	{
 		int result = 0;
-		if (is_memoized(memo_type::sum))
+		if (is_memoized(memo_type::sum, result))
 		{
 			return result;
 		}
@@ -218,7 +221,7 @@ namespace exprcpp::internal
 		auto resmark = m_mark;
 		while (true)
 		{
-			if (!update_memo(mark, memo_type::sum))
+			if (!update_memo(mark, memo_type::sum, result))
 			{
 				return result;
 			}
@@ -281,7 +284,7 @@ namespace exprcpp::internal
 		std::cout << "rule term:" << std::endl;
 
 		int result = 0;
-		if (is_memoized(memo_type::term))
+		if (is_memoized(memo_type::term, result))
 		{
 			return result;
 		}
@@ -289,7 +292,7 @@ namespace exprcpp::internal
 		auto resmark = m_mark;
 		while (true)
 		{
-			if (!update_memo(mark, memo_type::term))
+			if (!update_memo(mark, memo_type::term, result))
 			{
 				return result;
 			}
@@ -309,6 +312,12 @@ namespace exprcpp::internal
 	auto parser_t::rule_factor() -> int
 	{
 		std::cout << "rule factor:" << std::endl;
+
+		int result = 0;
+		if (is_memoized(memo_type::factor, result))
+		{
+			return result;
+		}
 
 		auto mark = m_mark;
 		{ // '+' factor
@@ -409,7 +418,7 @@ namespace exprcpp::internal
 		std::cout << "rule primary:" << std::endl;
 
 		int result = 0;
-		if (is_memoized(memo_type::primary))
+		if (is_memoized(memo_type::primary, result))
 		{
 			return result;
 		}
@@ -417,7 +426,7 @@ namespace exprcpp::internal
 		auto resmark = m_mark;
 		while (true)
 		{
-			if (!update_memo(mark, memo_type::primary))
+			if (!update_memo(mark, memo_type::primary, result))
 			{
 				return result;
 			}

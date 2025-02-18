@@ -69,6 +69,7 @@ namespace exprcpp::internal
 	struct memo_t
 	{
 		int type;
+		int node;
 		int mark;
 		std::shared_ptr<memo_t> next;
 	};

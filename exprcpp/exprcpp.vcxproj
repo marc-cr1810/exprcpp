@@ -150,6 +150,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="include\exprcpp.hpp" />
+    <ClInclude Include="include\exprcpp\ast.hpp" />
     <ClInclude Include="include\exprcpp\expression.hpp" />
     <ClInclude Include="include\exprcpp\parser.hpp" />
     <ClInclude Include="include\exprcpp\symbol_table.hpp" />
@@ -161,6 +162,7 @@
     <None Include="include\exprcpp\symbol_table.inl" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\exprcpp\ast.cpp" />
     <ClCompile Include="src\exprcpp\parser.cpp" />
     <ClCompile Include="src\exprcpp\tokenizer.cpp" />
   </ItemGroup>

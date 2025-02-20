@@ -1,5 +1,6 @@
 #pragma once
 
+#include "exprcpp/ast.hpp"
 #include <memory>
 #include <string>
 
@@ -69,7 +70,7 @@ namespace exprcpp::internal
 	struct memo_t
 	{
 		int type;
-		int node;
+		ast::node_ptr_t node;
 		int mark;
 		std::shared_ptr<memo_t> next;
 	};

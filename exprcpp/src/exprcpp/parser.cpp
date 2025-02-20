@@ -1,7 +1,5 @@
 #include "exprcpp/parser.hpp"
 
-#include <iostream>
-
 namespace exprcpp::internal
 {
 
@@ -17,9 +15,9 @@ namespace exprcpp::internal
 		: m_tokenizer(expression_string)
 	{ }
 
-	auto parser_t::compile() -> bool
+	auto parser_t::compile() -> ast::stmt_seq_ptr_t
 	{
-		return rule_statement();
+		return rule_statements();
 	}
 
 	auto parser_t::fill_token() -> token_type_e
@@ -67,7 +65,7 @@ namespace exprcpp::internal
 		return true;
 	}
 
-	auto parser_t::is_memoized(int type, int& pres) -> bool
+	auto parser_t::is_memoized(int type, ast::node_ptr_t& pres) -> bool
 	{
 		if (m_mark == m_tokens.size())
 		{
@@ -91,7 +89,7 @@ namespace exprcpp::internal
 		return false;
 	}
 
-	auto parser_t::insert_memo(size_t mark, int type, int& node) -> bool
+	auto parser_t::insert_memo(size_t mark, int type, ast::node_ptr_t node) -> bool
 	{
 		auto memo = std::make_shared<memo_t>();
 		if (memo == nullptr)
@@ -106,7 +104,7 @@ namespace exprcpp::internal
 		return true;
 	}
 
-	auto parser_t::update_memo(size_t mark, int type, int& node) -> bool
+	auto parser_t::update_memo(size_t mark, int type, ast::node_ptr_t node) -> bool
 	{
 		for (auto memo = m_tokens[mark]->memo; memo != nullptr; memo = memo->next)
 		{
@@ -120,102 +118,162 @@ namespace exprcpp::internal
 		return insert_memo(mark, type, node);
 	}
 
-	auto parser_t::rule_statement() -> int
+	auto parser_t::rule_statements() -> ast::stmt_seq_ptr_t
 	{
-		std::cout << "rule statement:" << std::endl;
+		auto mark = m_mark;
+		auto start_mark = m_mark;
+		std::vector<ast::stmt_ptr_t> elements;
 
+		{ // statement+
+			ast::stmt_ptr_t statement;
+			while (
+				(statement = rule_statement())
+				)
+			{
+				elements.push_back(statement);
+				mark = m_mark;
+			}
+			m_mark = mark;
+		}
+
+		if (elements.empty())
+		{
+			return nullptr;
+		}
+
+		auto statements = std::make_shared<ast::stmt_seq_t>();
+		statements->elements = elements;
+		return statements;
+	}
+
+	auto parser_t::rule_statement() -> ast::stmt_ptr_t
+	{
 		auto mark = m_mark;
 		{ // expression NEWLINE
+			ast::expr_ptr_t expr;
 			if (
-				rule_expression() &&
+				(expr = rule_expression()) &&
 				expect_token(TOK_NEWLINE)
 				)
 			{
-				std::cout << "  expression NEWLINE" << std::endl;
-				return 1;
+				return ast::expression(expr);
 			}
 		}
 		m_mark = mark;
 		{ // expression ENDMARKER
+			ast::expr_ptr_t expr;
 			if (
-				rule_expression() &&
+				(expr = rule_expression()) &&
 				expect_token(TOK_ENDMARKER)
 				)
 			{
-				std::cout << "  expression ENDMARKER" << std::endl;
-				return 1;
+				return ast::expression(expr);
 			}
 		}
 
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::rule_expression() -> int
+	auto parser_t::rule_expression() -> ast::expr_ptr_t
 	{
-		std::cout << "rule expression:" << std::endl;
-
 		auto mark = m_mark;
-		{ // sum
+		{ // assignment
+			ast::expr_ptr_t assign;
 			if (
-				rule_sum()
+				(assign = rule_assignment())
 				)
 			{
-				std::cout << "  sum" << std::endl;
-				return 1;
+				return assign;
+			}
+		}
+		m_mark = mark;
+		{ // sum
+			ast::expr_ptr_t sum;
+			if (
+				(sum = rule_sum())
+				)
+			{
+				return sum;
 			}
 		}
 
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::raw_sum() -> int
+	auto parser_t::rule_assignment() -> ast::expr_ptr_t
 	{
-		std::cout << "raw sum:" << std::endl;
+		auto mark = m_mark;
+		{ // NAME ':=' expression
+			token_ptr_t name;
+			ast::expr_ptr_t value;
+			if (
+				expect_token(TOK_NAME, name) &&
+				expect_token(TOK_COLONEQUAL) &&
+				(value = rule_expression())
+				)
+			{
+				return ast::assign(name->value, value);
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	}
 
+	auto parser_t::rule_comparison() -> ast::expr_ptr_t
+	{
+		return ast::expr_ptr_t();
+	}
+
+	auto parser_t::raw_sum() -> ast::expr_ptr_t
+	{
 		auto mark = m_mark;
 		{ // sum '+' term
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
 			if (
-				rule_sum() &&
+				(left = rule_sum()) &&
 				expect_token(TOK_ADD) &&
-				rule_term()
+				(right = rule_term())
 				)
 			{
-				std::cout << "  sum + term" << std::endl;
-				return 1;
+				return ast::bin_op(left, ast::operator_type_t::add, right);
 			}
 		}
 		m_mark = mark;
 		{ // sum '-' term
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
 			if (
-				rule_sum() &&
+				(left = rule_sum()) &&
 				expect_token(TOK_MINUS) &&
-				rule_term()
+				(right = rule_term())
 				)
 			{
-				std::cout << "  sum - term" << std::endl;
-				return 1;
+				return ast::bin_op(left, ast::operator_type_t::sub, right);
 			}
 		}
 		m_mark = mark;
 		{ // term
+			ast::expr_ptr_t term;
 			if (
-				rule_term()
+				(term = rule_term())
 				)
 			{
-				std::cout << "  term" << std::endl;
-				return 1;
+				return term;
 			}
 		}
-
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::rule_sum() -> int
+	auto parser_t::rule_sum() -> ast::expr_ptr_t
 	{
-		int result = 0;
+		ast::node_ptr_t result = 0;
 		if (is_memoized(memo_type::sum, result))
 		{
-			return result;
+			return std::static_pointer_cast<ast::expression_t>(result);result;
 		}
 		auto mark = m_mark;
 		auto resmark = m_mark;
@@ -223,11 +281,11 @@ namespace exprcpp::internal
 		{
 			if (!update_memo(mark, memo_type::sum, result))
 			{
-				return result;
+				return std::static_pointer_cast<ast::expression_t>(result);
 			}
 			m_mark = mark;
 			auto raw = raw_sum();
-			if (raw == 0 || m_mark <= resmark)
+			if (raw == nullptr || m_mark <= resmark)
 			{
 				break;
 			}
@@ -235,58 +293,57 @@ namespace exprcpp::internal
 			result = raw;
 		}
 		m_mark = resmark;
-		return result;
+		return std::static_pointer_cast<ast::expression_t>(result);
 	}
 
-	auto parser_t::raw_term() -> int
+	auto parser_t::raw_term() -> ast::expr_ptr_t
 	{
-		std::cout << "raw term:" << std::endl;
-
 		auto mark = m_mark;
 		{ // term '*' factor
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
 			if (
-				rule_term() &&
+				(left = rule_term()) &&
 				expect_token(TOK_STAR) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  term * factor" << std::endl;
-				return 1;
+				return ast::bin_op(left, ast::operator_type_t::mult, right);
 			}
 		}
 		m_mark = mark;
 		{ // term '/' factor
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
 			if (
-				rule_term() &&
+				(left = rule_term()) &&
 				expect_token(TOK_FSLASH) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  term / factor" << std::endl;
-				return 1;
+				return ast::bin_op(left, ast::operator_type_t::div, right);
 			}
 		}
 		m_mark = mark;
 		{ // factor
+			ast::expr_ptr_t factor;
 			if (
-				rule_factor()
+				(factor = rule_factor())
 				)
 			{
-				std::cout << "  factor" << std::endl;
-				return 1;
+				return factor;
 			}
 		}
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::rule_term() -> int
+	auto parser_t::rule_term() -> ast::expr_ptr_t
 	{
-		std::cout << "rule term:" << std::endl;
-
-		int result = 0;
+		ast::node_ptr_t result = 0;
 		if (is_memoized(memo_type::term, result))
 		{
-			return result;
+			return std::static_pointer_cast<ast::expression_t>(result);
 		}
 		auto mark = m_mark;
 		auto resmark = m_mark;
@@ -294,11 +351,11 @@ namespace exprcpp::internal
 		{
 			if (!update_memo(mark, memo_type::term, result))
 			{
-				return result;
+				return std::static_pointer_cast<ast::expression_t>(result);
 			}
 			m_mark = mark;
 			auto raw = raw_term();
-			if (raw == 0 || m_mark <= resmark)
+			if (raw == nullptr || m_mark <= resmark)
 			{
 				break;
 			}
@@ -306,121 +363,115 @@ namespace exprcpp::internal
 			result = raw;
 		}
 		m_mark = resmark;
-		return result;
+		return std::static_pointer_cast<ast::expression_t>(result);
 	}
 
-	auto parser_t::rule_factor() -> int
+	auto parser_t::rule_factor() -> ast::expr_ptr_t
 	{
-		std::cout << "rule factor:" << std::endl;
-
-		int result = 0;
+		ast::node_ptr_t result = 0;
 		if (is_memoized(memo_type::factor, result))
 		{
-			return result;
+			return std::static_pointer_cast<ast::expression_t>(result);
 		}
 
 		auto mark = m_mark;
 		{ // '+' factor
+			ast::expr_ptr_t right;
 			if (
 				expect_token(TOK_ADD) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  + factor" << std::endl;
-				return 1;
+				return ast::unary_op(ast::unary_op_type_t::add, right);
 			}
 		}
 		m_mark = mark;
 		{ // '-' factor
+			ast::expr_ptr_t right;
 			if (
 				expect_token(TOK_MINUS) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  - factor" << std::endl;
-				return 1;
+				return ast::unary_op(ast::unary_op_type_t::sub, right);
 			}
 		}
 		m_mark = mark;
 		{ // '~' factor
+			ast::expr_ptr_t right;
 			if (
 				expect_token(TOK_TILDE) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  ~ factor" << std::endl;
-				return 1;
+				return ast::unary_op(ast::unary_op_type_t::invert, right);
 			}
 		}
 		m_mark = mark;
 		{ // power
+			ast::expr_ptr_t power;
 			if (
-				rule_power()
+				(power = rule_power())
 				)
 			{
-				std::cout << "  power" << std::endl;
-				return 1;
+				return power;
 			}
 		}
-
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::rule_power() -> int
+	auto parser_t::rule_power() -> ast::expr_ptr_t
 	{
-		std::cout << "rule power:" << std::endl;
-
 		auto mark = m_mark;
 		{ // primary '**' factor
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
 			if (
-				rule_primary() &&
+				(left = rule_primary()) &&
 				expect_token(TOK_DOUBLESTAR) &&
-				rule_factor()
+				(right = rule_factor())
 				)
 			{
-				std::cout << "  primary ** factor" << std::endl;
-				return 1;
+				return ast::bin_op(left, ast::operator_type_t::pow, right);
 			}
 		}
 		m_mark = mark;
 		{ // primary
+			ast::expr_ptr_t primary;
 			if (
-				rule_primary()
+				(primary = rule_primary())
 				)
 			{
-				std::cout << "  primary" << std::endl;
-				return 1;
+				return primary;
 			}
 		}
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::raw_primary() -> int
+	auto parser_t::raw_primary() -> ast::expr_ptr_t
 	{
-		std::cout << "raw primary:" << std::endl;
-
 		auto mark = m_mark;
 		{ // atom
+			ast::expr_ptr_t atom;
 			if (
-				rule_atom()
+				(atom = rule_atom())
 				)
 			{
-				std::cout << "  atom" << std::endl;
-				return 1;
+				return atom;
 			}
 		}
-
-		return 0;
+		m_mark = mark;
+		return nullptr;
 	}
 
-	auto parser_t::rule_primary() -> int
+	auto parser_t::rule_primary() -> ast::expr_ptr_t
 	{
-		std::cout << "rule primary:" << std::endl;
-
-		int result = 0;
+		ast::node_ptr_t result = 0;
 		if (is_memoized(memo_type::primary, result))
 		{
-			return result;
+			return std::static_pointer_cast<ast::expression_t>(result);
 		}
 		auto mark = m_mark;
 		auto resmark = m_mark;
@@ -428,11 +479,11 @@ namespace exprcpp::internal
 		{
 			if (!update_memo(mark, memo_type::primary, result))
 			{
-				return result;
+				return std::static_pointer_cast<ast::expression_t>(result);
 			}
 			m_mark = mark;
 			auto raw = raw_primary();
-			if (raw == 0 || m_mark <= resmark)
+			if (raw == nullptr || m_mark <= resmark)
 			{
 				break;
 			}
@@ -440,13 +491,11 @@ namespace exprcpp::internal
 			result = raw;
 		}
 		m_mark = resmark;
-		return result;
+		return std::static_pointer_cast<ast::expression_t>(result);
 	}
 
-	auto parser_t::rule_atom() -> int
+	auto parser_t::rule_atom() -> ast::expr_ptr_t
 	{
-		std::cout << "rule atom:" << std::endl;
-
 		auto mark = m_mark;
 		{ // NAME
 			token_ptr_t token;
@@ -454,8 +503,7 @@ namespace exprcpp::internal
 				expect_token(TOK_NAME, token)
 				)
 			{
-				std::cout << "  '" << token->value << "'" << std::endl;
-				return 1;
+				return ast::name(token->value, ast::expr_context_type_e::load);
 			}
 		}
 		m_mark = mark;
@@ -465,11 +513,23 @@ namespace exprcpp::internal
 				expect_token(TOK_NUMBER, token)
 				)
 			{
-				std::cout << "  " << token->value << std::endl;
-				return 1;
+				return ast::constant(token->value);
 			}
 		}
-		return 0;
+		m_mark = mark;
+		{ // '(' expression ')'
+			ast::expr_ptr_t expr;
+			if (
+				expect_token(TOK_LPAREN) &&
+				(expr = rule_expression()) &&
+				expect_token(TOK_RPAREN)
+				)
+			{
+				return expr;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
 	}
 
 }

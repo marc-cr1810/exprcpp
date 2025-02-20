@@ -143,7 +143,6 @@ namespace exprcpp::internal
             if (c == '.')
             {
                 c = next();
-            fraction:
                 if (is_digit(c))
                 {
                     c = decimal_tail(token);
@@ -183,13 +182,24 @@ namespace exprcpp::internal
 
 	auto tokenizer_t::next() -> char
 	{
+        if (m_expression_string.empty())
+        {
+            return EOF;
+        }
+
         if (m_first)
         {
             m_first = false;
             return *m_current;
         }
 
-		if (++m_current < m_expression_string.end())
+        if (m_done)
+        {
+            return EOF;
+        }
+
+        m_current++;
+		if (m_current < m_expression_string.end())
 		{
 			return *m_current;
 		}

@@ -6,7 +6,7 @@
 namespace exprcpp
 {
 	template<typename T>
-	inline auto symbol_table_t<T>::add_constants() -> void
+	auto symbol_table_t<T>::add_constants() -> void
 	{
 		add_constant("e", M_E);
 		add_constant("pi", M_PI);
@@ -17,7 +17,7 @@ namespace exprcpp
 	}
 
 	template<typename T>
-	inline auto symbol_table_t<T>::add_constant(const std::string& name, T value) -> bool
+	auto symbol_table_t<T>::add_constant(const std::string& name, const T& value) -> bool
 	{
 		if (has(name))
 		{
@@ -28,7 +28,18 @@ namespace exprcpp
 	}
 
 	template<typename T>
-	inline auto symbol_table_t<T>::add_variable(const std::string& name, T* variable) -> bool
+	auto symbol_table_t<T>::add_variable(const std::string& name, const T& value) -> bool
+	{
+		if (has(name))
+		{
+			return false;
+		}
+		m_dynamic[name] = value;
+		return false;
+	}
+
+	template<typename T>
+	auto symbol_table_t<T>::add_variable(const std::string& name, T* variable) -> bool
 	{
 		if (has(name) || variable == nullptr)
 		{
@@ -39,21 +50,57 @@ namespace exprcpp
 	}
 
 	template<typename T>
-	inline auto symbol_table_t<T>::has(const std::string& name) const -> bool
+	auto symbol_table_t<T>::has(const std::string& name) const -> bool
 	{
 		return has_constant(name) || has_variable(name);
 	}
 
 	template<typename T>
-	inline auto symbol_table_t<T>::has_constant(const std::string& name) const -> bool
+	auto symbol_table_t<T>::has_constant(const std::string& name) const -> bool
 	{
 		return m_constants.find(name) != m_constants.end();
 	}
 
 	template<typename T>
-	inline auto symbol_table_t<T>::has_variable(const std::string& name) const -> bool
+	auto symbol_table_t<T>::has_variable(const std::string& name) const -> bool
 	{
-		return m_variables.find(name) != m_variables.end();
+		return m_variables.find(name) != m_variables.end() || m_dynamic.find(name) != m_dynamic.end();
+	}
+
+	template<typename T>
+	inline auto symbol_table_t<T>::get_constant(const std::string& name) -> T&
+	{
+		return m_constants[name];
+	}
+
+	template<typename T>
+	inline auto symbol_table_t<T>::get_variable(const std::string& name) -> T&
+	{
+		if (m_variables.find(name) != m_variables.end())
+		{
+			return *m_variables[name];
+		}
+		return m_dynamic[name];
+	}
+
+	template<typename T>
+	inline auto symbol_table_t<T>::operator[](const std::string& name) const -> const T&
+	{
+		if (has_variable(name))
+		{
+			return get_variable(name);
+		}
+		return get_constant(name);
+	}
+
+	template<typename T>
+	inline auto symbol_table_t<T>::operator[](const std::string& name) -> T&
+	{
+		if (has_variable(name))
+		{
+			return get_variable(name);
+		}
+		return get_constant(name);
 	}
 
 }

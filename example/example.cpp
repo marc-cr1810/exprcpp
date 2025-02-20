@@ -6,7 +6,6 @@ int main()
 {
     double x = 1.0;
     double y = 1.5;
-    const std::string expression_string = "x + y";
 
     exprcpp::symbol_table_t<double> symbol_table;
     exprcpp::expression_t<double> expression;
@@ -16,5 +15,16 @@ int main()
     symbol_table.add_constants();
 
     expression.register_symbol_table(symbol_table);
-    exprcpp::compile(expression_string, expression);
+
+    std::string string_expression;
+    while (true)
+    {
+        std::cout << ">>> ";
+        std::getline(std::cin, string_expression);
+
+        if (exprcpp::compile(string_expression, expression) == EXIT_SUCCESS)
+        {
+            std::cout << expression.value() << std::endl;
+        }
+    }
 }

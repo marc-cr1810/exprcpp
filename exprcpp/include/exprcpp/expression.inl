@@ -2,6 +2,229 @@
 
 namespace exprcpp
 {
+
+	namespace internal
+	{
+
+		template<typename T>
+		stack_object_t<T>::stack_object_t(T scalar)
+		{
+			type = stack_object_type_e::scalar;
+			value = scalar;
+		}
+
+		template<typename T>
+		stack_object_t<T>::stack_object_t(vector_t vector)
+		{
+			type = stack_object_type_e::vector;
+			value = vector;
+		}
+
+
+#define stack_object_operator(op) \
+		template<typename T> \
+		constexpr auto operator op (const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T> \
+		{ \
+			if (lhs.type == stack_object_type_e::scalar) \
+			{ \
+				const auto lhs_scalar = std::get<T>(lhs.value); \
+				if (rhs.type == stack_object_type_e::vector) \
+				{ \
+					const auto rhs_vector = std::get<std::vector<T>>(rhs.value); \
+					std::vector<T> vector; \
+					for (const auto& value : rhs_vector) \
+					{ \
+						vector.push_back(static_cast<T>(lhs_scalar op value)); \
+					} \
+					return stack_object_t(vector); \
+				} \
+				return stack_object_t(static_cast<T>(lhs_scalar op std::get<T>(rhs.value))); \
+			} \
+			const auto lhs_vector = std::get<std::vector<T>>(lhs.value); \
+			std::vector<T> vector; \
+			if (rhs.type == stack_object_type_e::vector) \
+			{ \
+				const auto rhs_vector = std::get<std::vector<T>>(rhs.value); \
+				size_t size = std::max(lhs_vector.size(), rhs_vector.size()); \
+				for (size_t i = 0; i < size; i++) \
+				{ \
+					if (i < lhs_vector.size() && i < rhs_vector.size()) \
+					{ \
+						vector.push_back(static_cast<T>(lhs_vector[i] op rhs_vector[i])); \
+					} \
+					else if (i < lhs_vector.size()) \
+					{ \
+						vector.push_back(lhs_vector[i]); \
+					} \
+					else \
+					{ \
+						vector.push_back(rhs_vector[i]); \
+					} \
+				} \
+				return stack_object_t(vector); \
+			} \
+			const auto rhs_scalar = std::get<T>(rhs.value); \
+			for (const auto& value : lhs_vector) \
+			{ \
+				vector.push_back(static_cast<T>(value op rhs_scalar)); \
+			} \
+			return stack_object_t(vector); \
+		}
+
+#define stack_object_std_func(func) \
+		template<typename T> \
+		constexpr auto func (const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T> \
+		{ \
+			if (lhs.type == stack_object_type_e::scalar) \
+			{ \
+				const auto lhs_scalar = std::get<T>(lhs.value); \
+				if (rhs.type == stack_object_type_e::vector) \
+				{ \
+					const auto rhs_vector = std::get<std::vector<T>>(rhs.value); \
+					std::vector<T> vector; \
+					for (const auto& value : rhs_vector) \
+					{ \
+						vector.push_back(std:: func (lhs_scalar, value)); \
+					} \
+					return stack_object_t(vector); \
+				} \
+				return stack_object_t(std:: func (lhs_scalar, std::get<T>(rhs.value))); \
+			} \
+			const auto lhs_vector = std::get<std::vector<T>>(lhs.value); \
+			std::vector<T> vector; \
+			if (rhs.type == stack_object_type_e::vector) \
+			{ \
+				const auto rhs_vector = std::get<std::vector<T>>(rhs.value); \
+				size_t size = std::max(lhs_vector.size(), rhs_vector.size()); \
+				for (size_t i = 0; i < size; i++) \
+				{ \
+					if (i < lhs_vector.size() && i < rhs_vector.size()) \
+					{ \
+						vector.push_back(std:: func (lhs_vector[i], rhs_vector[i])); \
+					} \
+					else if (i < lhs_vector.size()) \
+					{ \
+						vector.push_back(lhs_vector[i]); \
+					} \
+					else \
+					{ \
+						vector.push_back(rhs_vector[i]); \
+					} \
+				} \
+				return stack_object_t(vector); \
+			} \
+			const auto rhs_scalar = std::get<T>(rhs.value); \
+			for (const auto& value : lhs_vector) \
+			{ \
+				vector.push_back(std:: func (value, rhs_scalar)); \
+			} \
+			return stack_object_t(vector); \
+		}
+
+		stack_object_operator(+);
+		stack_object_operator(-);
+		stack_object_operator(*);
+		stack_object_operator(/);
+
+		stack_object_operator(<);
+		stack_object_operator(<=);
+		stack_object_operator(>);
+		stack_object_operator(>=);
+
+		stack_object_std_func(pow);
+		stack_object_std_func(fmod);
+
+		template<typename T>
+		constexpr auto operator==(const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T>
+		{
+			bool result = false;
+			if (lhs.type == rhs.type)
+			{
+				if (lhs.type == stack_object_type_e::vector)
+				{
+					const auto lhs_vector = std::get<std::vector<T>>(lhs.value);
+					const auto rhs_vector = std::get<std::vector<T>>(rhs.value);
+
+					if (lhs_vector.size() == rhs_vector.size())
+					{
+						result = true;
+						for (size_t i = 0; i < lhs_vector.size(); i++)
+						{
+							if (lhs_vector[i] != rhs_vector[i])
+							{
+								result = false;
+								break;
+							}
+						}
+					}
+				}
+				const auto lhs_scalar = std::get<T>(lhs.value);
+				const auto rhs_scalar = std::get<T>(rhs.value);
+				result = lhs_scalar == rhs_scalar;
+			}
+			return stack_object_t<T>(static_cast<T>(result));
+		}
+
+		template<typename T>
+		constexpr auto operator!=(const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T>
+		{
+			bool result = true;
+			if (lhs.type == rhs.type)
+			{
+				if (lhs.type == stack_object_type_e::vector)
+				{
+					const auto lhs_vector = std::get<std::vector<T>>(lhs.value);
+					const auto rhs_vector = std::get<std::vector<T>>(rhs.value);
+
+					if (lhs_vector.size() == rhs_vector.size())
+					{
+						result = true;
+						for (size_t i = 0; i < lhs_vector.size(); i++)
+						{
+							if (lhs_vector[i] == rhs_vector[i])
+							{
+								result = false;
+								break;
+							}
+						}
+					}
+				}
+				const auto lhs_scalar = std::get<T>(lhs.value);
+				const auto rhs_scalar = std::get<T>(rhs.value);
+				result = lhs_scalar != rhs_scalar;
+			}
+			return stack_object_t<T>(static_cast<T>(result));
+		}
+
+		template<typename T>
+		constexpr auto in(const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T>
+		{
+			if (lhs.type != stack_object_type_e::scalar || rhs.type != stack_object_type_e::vector)
+			{
+				return stack_object_t<T>(T(false));
+			}
+
+			const auto scalar = std::get<T>(lhs.value);
+			const auto vector = std::get<std::vector<T>>(rhs.value);
+			const auto count = std::count(vector.begin(), vector.end(), scalar);
+			return stack_object_t<T>(T(count));
+		}
+
+		template<typename T>
+		constexpr auto not_in(const stack_object_t<T>& lhs, const stack_object_t<T>& rhs) -> stack_object_t<T>
+		{
+			if (lhs.type != stack_object_type_e::scalar || rhs.type != stack_object_type_e::vector)
+			{
+				return stack_object_t<T>(T(false));
+			}
+
+			const auto scalar = std::get<T>(lhs.value);
+			const auto vector = std::get<std::vector<T>>(rhs.value);
+			const auto count = std::count(vector.begin(), vector.end(), scalar);
+			return stack_object_t<T>(T(count == 0));
+		}
+	}
+
 	template<class Integer, typename Enable = void> 
 	struct convert_to_number_t 
 	{ 
@@ -66,13 +289,24 @@ namespace exprcpp
 			}
 		}
 
-		auto result = T();
 		if (!m_stack.empty())
 		{
-			result = m_stack.top();
+			const auto result = m_stack.top();
 			m_stack.pop();
+			if (result.type == internal::stack_object_type_e::vector)
+			{
+				const auto vector = std::get<std::vector<T>>(result.value);
+				if (vector.size() > 0)
+				{
+					return vector[0];
+				}
+			}
+			else
+			{
+				return std::get<T>(result.value);
+			}
 		}
-		return result;
+		return T();
 	}
 
 	template<typename T>
@@ -97,6 +331,11 @@ namespace exprcpp
 
 		switch (statement->kind)
 		{
+		case internal::ast::statement_kind_e::if_else:
+		{
+			auto if_else = std::get<internal::ast::statement_t::stmt_if_else_t>(statement->value);
+			return execute_if_else(if_else.condition, if_else.true_case, if_else.false_case);
+		}
 		case internal::ast::statement_kind_e::expr:
 		{
 			auto expr = std::get<internal::ast::statement_t::stmt_expr_t>(statement->value);
@@ -104,6 +343,41 @@ namespace exprcpp
 		}
 		}
 
+		return false;
+	}
+
+	template<typename T>
+	inline auto expression_t<T>::execute_if_else(const internal::ast::expr_ptr_t& condition, const internal::ast::expr_ptr_t& true_case, const internal::ast::expr_ptr_t& false_case) -> bool
+	{
+		if (condition == nullptr || true_case == nullptr)
+		{
+			return false;
+		}
+
+		if (!execute_expression(condition))
+		{
+			return false;
+		}
+		const auto condition_value = m_stack.top();
+		m_stack.pop();
+		T cond = condition_value.type == internal::stack_object_type_e::scalar ? std::get<T>(condition_value.value) : T(0);
+		if (condition_value.type == internal::stack_object_type_e::vector)
+		{
+			const auto vector = std::get<std::vector<T>>(condition_value.value);
+			if (vector.size() > 0)
+			{
+				cond = vector[0];
+			}
+		}
+
+		if (cond != 0 && execute_expression(true_case))
+		{
+			return true;
+		}
+		else if (false_case != nullptr && execute_expression(false_case))
+		{
+			return false;
+		}
 		return false;
 	}
 
@@ -152,90 +426,150 @@ namespace exprcpp
 			auto name = std::get<internal::ast::expression_t::expr_name_t>(expression->value);
 			return execute_name(name.id, name.context);
 		}
+		case internal::ast::expression_kind_e::vector:
+		{
+			auto vector = std::get<internal::ast::expression_t::expr_vector_t>(expression->value);
+			return execute_vector(vector.elements);
+		}
 		}
 
 		return false;
 	}
 
 	template<typename T>
-	auto expression_t<T>::execute_bool_op(internal::ast::bool_op_type_t op, const internal::ast::expr_seq_ptr_t& values) -> bool
+	auto expression_t<T>::execute_bool_op(internal::ast::bool_op_type_e op, const internal::ast::expr_seq_ptr_t& values) -> bool
 	{
-		return false;
+		if (values == nullptr || values->elements.size() == 0)
+		{
+			return false;
+		}
+
+		std::vector<T> expr_values;
+		for (const auto& expr : values->elements)
+		{
+			if (!execute_expression(expr))
+			{
+				return false;
+			}
+
+			const auto stack_value = m_stack.top();
+			m_stack.pop();
+			T value = stack_value.type == internal::stack_object_type_e::scalar ? std::get<T>(stack_value.value) : T(0);
+			if (stack_value.type == internal::stack_object_type_e::vector)
+			{
+				const auto vector = std::get<std::vector<T>>(stack_value.value);
+				if (vector.size() > 0)
+				{
+					value = vector[0];
+				}
+			}
+
+			expr_values.push_back(value);
+		}
+
+		T prev_value = expr_values[0];
+		for (size_t i = 1; i < expr_values.size(); i++)
+		{
+			switch (op)
+			{
+			case internal::ast::bool_op_type_e::And: prev_value = prev_value and expr_values[i]; break;
+			case internal::ast::bool_op_type_e::Or: prev_value = prev_value or expr_values[i]; break;
+			}
+		}
+		m_stack.push(internal::stack_object_t<T>(prev_value));
+		return true;
 	}
 
 	template<typename T>
-	auto expression_t<T>::execute_bin_op(const internal::ast::expr_ptr_t& left, internal::ast::operator_type_t op, const internal::ast::expr_ptr_t& right) -> bool
+	auto expression_t<T>::execute_bin_op(const internal::ast::expr_ptr_t& left, internal::ast::operator_type_e op, const internal::ast::expr_ptr_t& right) -> bool
 	{
 		if ((left == nullptr || right == nullptr) || (!execute_expression(left) || !execute_expression(right)))
 		{
 			return false;
 		}
 
-		T right_value = m_stack.top();
+		const auto right_value = m_stack.top();
 		m_stack.pop();
-		T left_value = m_stack.top();
+		const auto left_value = m_stack.top();
 		m_stack.pop();
 
 		switch (op)
 		{
-		case internal::ast::operator_type_t::add: m_stack.push(left_value + right_value); return true;
-		case internal::ast::operator_type_t::sub: m_stack.push(left_value - right_value); return true;
-		case internal::ast::operator_type_t::mult: m_stack.push(left_value * right_value); return true;
-		case internal::ast::operator_type_t::div: m_stack.push(left_value / right_value); return true;
-		case internal::ast::operator_type_t::mod: m_stack.push(std::fmod(left_value, right_value)); return true;
-		case internal::ast::operator_type_t::pow: m_stack.push(std::pow(left_value, right_value)); return true;
+		case internal::ast::operator_type_e::add: m_stack.push(left_value + right_value); return true;
+		case internal::ast::operator_type_e::sub: m_stack.push(left_value - right_value); return true;
+		case internal::ast::operator_type_e::mult: m_stack.push(left_value * right_value); return true;
+		case internal::ast::operator_type_e::div: m_stack.push(left_value / right_value); return true;
+		case internal::ast::operator_type_e::mod: m_stack.push(internal::fmod(left_value, right_value)); return true;
+		case internal::ast::operator_type_e::pow: m_stack.push(internal::pow(left_value, right_value)); return true;
 		}
 
 		return false;
 	}
 
 	template<typename T>
-	auto expression_t<T>::execute_unary_op(internal::ast::unary_op_type_t op, const internal::ast::expr_ptr_t& right) -> bool
+	auto expression_t<T>::execute_unary_op(internal::ast::unary_op_type_e op, const internal::ast::expr_ptr_t& right) -> bool
 	{
 		if (right == nullptr || !execute_expression(right))
 		{
 			return false;
 		}
 
-		T right_value = m_stack.top();
+		const auto right_value = m_stack.top();
 		m_stack.pop();
+
+		if (right_value.type != internal::stack_object_type_e::scalar)
+		{
+			return false;
+		}
+
+		T value = right_value.type == internal::stack_object_type_e::scalar ? std::get<T>(right_value.value) : T(0);
+		if (right_value.type == internal::stack_object_type_e::vector)
+		{
+			const auto vector = std::get<std::vector<T>>(right_value.value);
+			if (vector.size() > 0)
+			{
+				value = vector[0];
+			}
+		}
 
 		switch (op)
 		{
-		case internal::ast::unary_op_type_t::invert: m_stack.push(static_cast<T>(~static_cast<uint64_t>(right_value))); return true;
-		case internal::ast::unary_op_type_t::Not: m_stack.push(!right_value); return true;
-		case internal::ast::unary_op_type_t::add: m_stack.push(+right_value); return true;
-		case internal::ast::unary_op_type_t::sub: m_stack.push(-right_value); return true;
+		case internal::ast::unary_op_type_e::invert: m_stack.push(static_cast<T>(~static_cast<uint64_t>(value))); return true;
+		case internal::ast::unary_op_type_e::Not: m_stack.push(!value); return true;
+		case internal::ast::unary_op_type_e::add: m_stack.push(+value); return true;
+		case internal::ast::unary_op_type_e::sub: m_stack.push(-value); return true;
 		}
 
 		return false;
 	}
 
 	template<typename T>
-	inline auto expression_t<T>::execute_cmp_op(const internal::ast::expr_ptr_t& left, internal::ast::cmp_op_type_t op, const internal::ast::expr_ptr_t& right) -> bool
+	inline auto expression_t<T>::execute_cmp_op(const internal::ast::expr_ptr_t& left, internal::ast::cmp_op_type_e op, const internal::ast::expr_ptr_t& right) -> bool
 	{
 		if ((left == nullptr || right == nullptr) || (!execute_expression(left) || !execute_expression(right)))
 		{
 			return false;
 		}
 
-		T right_value = m_stack.top();
+		const auto right_value = m_stack.top();
 		m_stack.pop();
-		T left_value = m_stack.top();
+		const auto left_value = m_stack.top();
 		m_stack.pop();
 
-		bool value = false;
+		internal::stack_object_t<T> value = internal::stack_object_t<T>(T(0));
 		switch (op)
 		{
-		case internal::ast::cmp_op_type_t::eq: value = left_value == right_value; break;
-		case internal::ast::cmp_op_type_t::Not_eq: value = left_value != right_value; break;
-		case internal::ast::cmp_op_type_t::lt: value = left_value < right_value; break;
-		case internal::ast::cmp_op_type_t::lt_eq: value = left_value <= right_value; break;
-		case internal::ast::cmp_op_type_t::gt: value = left_value > right_value; break;
-		case internal::ast::cmp_op_type_t::gt_eq: value = left_value >= right_value; break;
+		case internal::ast::cmp_op_type_e::eq: value = left_value == right_value; break;
+		case internal::ast::cmp_op_type_e::Not_eq: value = left_value != right_value; break;
+		case internal::ast::cmp_op_type_e::lt: value = left_value < right_value; break;
+		case internal::ast::cmp_op_type_e::lt_eq: value = left_value <= right_value; break;
+		case internal::ast::cmp_op_type_e::gt: value = left_value > right_value; break;
+		case internal::ast::cmp_op_type_e::gt_eq: value = left_value >= right_value; break;
+		case internal::ast::cmp_op_type_e::in: value = internal::in(left_value, right_value); break;
+		case internal::ast::cmp_op_type_e::not_in: value = internal::not_in(left_value, right_value); break;
 		}
 
-		m_stack.push(value ? T(1) : T(0));
+		m_stack.push(value);
 		return true;
 	}
 
@@ -253,7 +587,7 @@ namespace exprcpp
 	template<typename T>
 	auto expression_t<T>::execute_constant(const std::string& value) -> bool
 	{
-		m_stack.push(to_number<T>(value));
+		m_stack.push(internal::stack_object_t<T>(to_number<T>(value)));
 		return true;
 	}
 
@@ -274,13 +608,23 @@ namespace exprcpp
 		}
 		case internal::ast::expr_context_type_e::store:
 		{
-			T value = m_stack.top();
+			const auto value = m_stack.top();
+
+			T var_value = value.type == internal::stack_object_type_e::scalar ? std::get<T>(value.value) : T(0);
+			if (value.type == internal::stack_object_type_e::vector)
+			{
+				const auto vector = std::get<std::vector<T>>(value.value);
+				if (vector.size() > 0)
+				{
+					var_value = vector[0];
+				}
+			}
 
 			if (m_symbol_table.has(id))
 			{
-				m_symbol_table[id] = value;
+				m_symbol_table[id] = var_value;
 			}
-			m_symbol_table.add_variable(id, value);
+			m_symbol_table.add_variable(id, var_value);
 			return true;
 		}
 		case internal::ast::expr_context_type_e::del:
@@ -290,6 +634,40 @@ namespace exprcpp
 
 		return false;
 		}
+	}
+
+	template<typename T>
+	auto expression_t<T>::execute_vector(const internal::ast::expr_seq_ptr_t& elements) -> bool
+	{
+		if (elements == nullptr)
+		{
+			return false;
+		}
+
+		std::vector<T> vector_elements;
+		for (const auto& value : elements->elements)
+		{
+			if (!execute_expression(value))
+			{
+				return false;
+			}
+			const auto element = m_stack.top();
+			m_stack.pop();
+			T value = element.type == internal::stack_object_type_e::scalar ? std::get<T>(element.value) : T(0);
+			if (element.type == internal::stack_object_type_e::vector)
+			{
+				const auto vector = std::get<std::vector<T>>(element.value);
+				if (vector.size() > 0)
+				{
+					value = vector[0];
+				}
+			}
+
+			vector_elements.push_back(value);
+		}
+
+		m_stack.push(internal::stack_object_t<T>(vector_elements));
+		return true;
 	}
 
 }

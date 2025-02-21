@@ -5,7 +5,6 @@
 
 namespace exprcpp
 {
-
 	template<typename T>
 	class symbol_table_t
 	{

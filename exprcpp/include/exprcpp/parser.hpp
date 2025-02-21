@@ -25,8 +25,13 @@ namespace exprcpp::internal
 
 		auto rule_statements() -> ast::stmt_seq_ptr_t;
 		auto rule_statement() -> ast::stmt_ptr_t;
+		auto rule_simple_statement() -> ast::stmt_ptr_t;
+		auto rule_if_else() -> ast::stmt_ptr_t;
 		auto rule_expression() -> ast::expr_ptr_t;
 		auto rule_assignment() -> ast::expr_ptr_t;
+		auto rule_disjunction() -> ast::expr_ptr_t;
+		auto rule_conjunction() -> ast::expr_ptr_t;
+		auto rule_inversion() -> ast::expr_ptr_t;
 		auto rule_comparison() -> ast::expr_ptr_t;
 		auto raw_sum() -> ast::expr_ptr_t;
 		auto rule_sum() -> ast::expr_ptr_t;
@@ -37,6 +42,10 @@ namespace exprcpp::internal
 		auto raw_primary() -> ast::expr_ptr_t;
 		auto rule_primary() -> ast::expr_ptr_t;
 		auto rule_atom() -> ast::expr_ptr_t;
+		auto rule_expression_commas() -> ast::expr_seq_ptr_t;
+		auto rule_vector() -> ast::expr_ptr_t;
+		auto rule_or_conjunction() -> ast::expr_seq_ptr_t;
+		auto rule_and_inversion() -> ast::expr_seq_ptr_t;
 	private:
 		tokenizer_t m_tokenizer;
 		std::vector<token_ptr_t> m_tokens;

@@ -5,10 +5,12 @@ namespace exprcpp::internal
 
 	namespace memo_type
 	{
-		const auto sum		= int(1);
-		const auto term		= int(2);
-		const auto factor	= int(3);
-		const auto primary	= int(4);
+		const auto sum		   = int(1);
+		const auto term		   = int(2);
+		const auto factor	   = int(3);
+		const auto primary	   = int(4);
+		const auto disjunction = int(5);
+		const auto conjunction = int(6);
 	}
 
 	parser_t::parser_t(const std::string& expression_string)
@@ -98,7 +100,7 @@ namespace exprcpp::internal
 		}
 		memo->type = type;
 		memo->node = node;
-		memo->mark = mark;
+		memo->mark = m_mark;
 		memo->next = m_tokens[mark]->memo;
 		m_tokens[mark]->memo = memo;
 		return true;
@@ -150,27 +152,90 @@ namespace exprcpp::internal
 	{
 		auto mark = m_mark;
 		{ // expression NEWLINE
-			ast::expr_ptr_t expr;
+			ast::stmt_ptr_t stmt;
 			if (
-				(expr = rule_expression()) &&
+				(stmt = rule_simple_statement()) &&
 				expect_token(TOK_NEWLINE)
 				)
 			{
-				return ast::expression(expr);
+				return stmt;
 			}
 		}
 		m_mark = mark;
-		{ // expression ENDMARKER
+		{ // simple_statement ENDMARKER
+			ast::stmt_ptr_t stmt;
+			if (
+				(stmt = rule_simple_statement()) &&
+				expect_token(TOK_ENDMARKER)
+				)
+			{
+				return stmt;
+			}
+		}
+
+		m_mark = mark;
+		return nullptr;
+	}
+
+	auto parser_t::rule_simple_statement() -> ast::stmt_ptr_t
+	{
+		auto mark = m_mark;
+		{ // if_else
+			ast::stmt_ptr_t if_else;
+			if (
+				(if_else = rule_if_else())
+				)
+			{
+				return if_else;
+			}
+		}
+		m_mark = mark;
+		{ // expression
 			ast::expr_ptr_t expr;
 			if (
-				(expr = rule_expression()) &&
-				expect_token(TOK_ENDMARKER)
+				(expr = rule_expression())
 				)
 			{
 				return ast::expression(expr);
 			}
 		}
 
+		m_mark = mark;
+		return nullptr;
+	}
+
+	auto parser_t::rule_if_else() -> ast::stmt_ptr_t
+	{
+		auto mark = m_mark;
+		{ // expression 'if' expression 'else' expression
+			ast::expr_ptr_t true_case;
+			ast::expr_ptr_t condition;
+			ast::expr_ptr_t false_case;
+			if (
+				(true_case = rule_expression()) &&
+				expect_token(TOK_IF) &&
+				(condition = rule_expression()) &&
+				expect_token(TOK_ELSE) &&
+				(false_case = rule_expression())
+				)
+			{
+				return ast::if_else(condition, true_case, false_case);
+			}
+		}
+		m_mark = mark;
+		{ // expression 'if' expression
+			ast::expr_ptr_t true_case;
+			ast::expr_ptr_t condition;
+			ast::expr_ptr_t false_case;
+			if (
+				(true_case = rule_expression()) &&
+				expect_token(TOK_IF) &&
+				(condition = rule_expression())
+				)
+			{
+				return ast::if_else(condition, true_case, nullptr);
+			}
+		}
 		m_mark = mark;
 		return nullptr;
 	}
@@ -188,13 +253,13 @@ namespace exprcpp::internal
 			}
 		}
 		m_mark = mark;
-		{ // sum
-			ast::expr_ptr_t sum;
+		{ // disjunction
+			ast::expr_ptr_t disjunction;
 			if (
-				(sum = rule_sum())
+				(disjunction = rule_disjunction())
 				)
 			{
-				return sum;
+				return disjunction;
 			}
 		}
 
@@ -221,9 +286,232 @@ namespace exprcpp::internal
 		return nullptr;
 	}
 
+	auto parser_t::rule_disjunction() -> ast::expr_ptr_t
+	{
+		ast::node_ptr_t result;
+		if (is_memoized(memo_type::disjunction, result))
+		{
+			return std::static_pointer_cast<ast::expression_t>(result);
+		}
+
+		auto mark = m_mark;
+		{ // conjunction ('or' conjunction)+
+			ast::expr_ptr_t conjunction;
+			ast::expr_seq_ptr_t exprs;
+			if (
+				(conjunction = rule_conjunction()) &&
+				(exprs = rule_or_conjunction())
+				)
+			{
+				exprs->elements.insert(exprs->elements.begin(), conjunction);
+				result = ast::bool_op(ast::bool_op_type_e::Or, exprs);
+				goto done;
+			}
+		}
+		m_mark = mark;
+		{ // conjunction
+			ast::expr_ptr_t conjunction;
+			if (
+				(conjunction = rule_conjunction())
+				)
+			{
+				result = conjunction;
+				goto done;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	done:
+		insert_memo(mark, memo_type::conjunction, result);
+		return std::static_pointer_cast<ast::expression_t>(result);
+	}
+
+	auto parser_t::rule_conjunction() -> ast::expr_ptr_t
+	{
+		ast::node_ptr_t result;
+		if (is_memoized(memo_type::conjunction, result))
+		{
+			return std::static_pointer_cast<ast::expression_t>(result);
+		}
+
+		auto mark = m_mark;
+		{ // inversion ('and' inversion)+
+			ast::expr_ptr_t inversion;
+			ast::expr_seq_ptr_t exprs;
+			if (
+				(inversion = rule_inversion()) &&
+				(exprs = rule_and_inversion())
+				)
+			{
+				exprs->elements.insert(exprs->elements.begin(), inversion);
+				result = ast::bool_op(ast::bool_op_type_e::And, exprs);
+				goto done;
+			}
+		}
+		m_mark = mark;
+		{ // inversion
+			ast::expr_ptr_t inversion;
+			if (
+				(inversion = rule_inversion())
+				)
+			{
+				result = inversion;
+				goto done;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	done:
+		insert_memo(mark, memo_type::conjunction, result);
+		return std::static_pointer_cast<ast::expression_t>(result);
+	}
+
+	auto parser_t::rule_inversion() -> ast::expr_ptr_t
+	{
+		auto mark = m_mark;
+		{ // 'not' comparison
+			ast::expr_ptr_t right;
+			if (
+				expect_token(TOK_NOT) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::unary_op(ast::unary_op_type_e::Not, right);
+			}
+		}
+		m_mark = mark;
+		{ // comparison
+			ast::expr_ptr_t comparison;
+			if (
+				(comparison = rule_comparison())
+				)
+			{
+				return comparison;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	}
+
 	auto parser_t::rule_comparison() -> ast::expr_ptr_t
 	{
-		return ast::expr_ptr_t();
+		auto mark = m_mark;
+		{ // sum '==' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_EQUALEQUAL) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::eq, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum '!=' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_NOTEQUAL) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::Not_eq, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum '<' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_LESS) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::lt, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum '<=' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_LESSEQUAL) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::lt_eq, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum '>' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_GREATER) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::gt, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum '>=' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_GREATEREQUAL) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::gt_eq, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum 'in' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_IN) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::in, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum 'not' 'in' comparison
+			ast::expr_ptr_t left;
+			ast::expr_ptr_t right;
+			if (
+				(left = rule_sum()) &&
+				expect_token(TOK_NOT) &&
+				expect_token(TOK_IN) &&
+				(right = rule_comparison())
+				)
+			{
+				return ast::cmp_op(left, ast::cmp_op_type_e::not_in, right);
+			}
+		}
+		m_mark = mark;
+		{ // sum
+			ast::expr_ptr_t sum;
+			if (
+				(sum = rule_sum())
+				)
+			{
+				return sum;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
 	}
 
 	auto parser_t::raw_sum() -> ast::expr_ptr_t
@@ -238,7 +526,7 @@ namespace exprcpp::internal
 				(right = rule_term())
 				)
 			{
-				return ast::bin_op(left, ast::operator_type_t::add, right);
+				return ast::bin_op(left, ast::operator_type_e::add, right);
 			}
 		}
 		m_mark = mark;
@@ -251,7 +539,7 @@ namespace exprcpp::internal
 				(right = rule_term())
 				)
 			{
-				return ast::bin_op(left, ast::operator_type_t::sub, right);
+				return ast::bin_op(left, ast::operator_type_e::sub, right);
 			}
 		}
 		m_mark = mark;
@@ -308,7 +596,7 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::bin_op(left, ast::operator_type_t::mult, right);
+				return ast::bin_op(left, ast::operator_type_e::mult, right);
 			}
 		}
 		m_mark = mark;
@@ -321,7 +609,7 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::bin_op(left, ast::operator_type_t::div, right);
+				return ast::bin_op(left, ast::operator_type_e::div, right);
 			}
 		}
 		m_mark = mark;
@@ -382,7 +670,8 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::unary_op(ast::unary_op_type_t::add, right);
+				result = ast::unary_op(ast::unary_op_type_e::add, right);
+				goto done;
 			}
 		}
 		m_mark = mark;
@@ -393,7 +682,8 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::unary_op(ast::unary_op_type_t::sub, right);
+				result = ast::unary_op(ast::unary_op_type_e::sub, right);
+				goto done;
 			}
 		}
 		m_mark = mark;
@@ -404,7 +694,8 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::unary_op(ast::unary_op_type_t::invert, right);
+				result = ast::unary_op(ast::unary_op_type_e::invert, right);
+				goto done;
 			}
 		}
 		m_mark = mark;
@@ -414,11 +705,15 @@ namespace exprcpp::internal
 				(power = rule_power())
 				)
 			{
-				return power;
+				result = power;
+				goto done;
 			}
 		}
 		m_mark = mark;
 		return nullptr;
+	done:
+		insert_memo(mark, memo_type::conjunction, result);
+		return std::static_pointer_cast<ast::expression_t>(result);
 	}
 
 	auto parser_t::rule_power() -> ast::expr_ptr_t
@@ -433,7 +728,7 @@ namespace exprcpp::internal
 				(right = rule_factor())
 				)
 			{
-				return ast::bin_op(left, ast::operator_type_t::pow, right);
+				return ast::bin_op(left, ast::operator_type_e::pow, right);
 			}
 		}
 		m_mark = mark;
@@ -517,6 +812,16 @@ namespace exprcpp::internal
 			}
 		}
 		m_mark = mark;
+		{ // vector
+			ast::expr_ptr_t vector;
+			if (
+				(vector = rule_vector())
+				)
+			{
+				return vector;
+			}
+		}
+		m_mark = mark;
 		{ // '(' expression ')'
 			ast::expr_ptr_t expr;
 			if (
@@ -530,6 +835,109 @@ namespace exprcpp::internal
 		}
 		m_mark = mark;
 		return nullptr;
+	}
+
+	auto parser_t::rule_expression_commas() -> ast::expr_seq_ptr_t
+	{
+		auto mark = m_mark;
+		auto start_mark = m_mark;
+		std::vector<ast::expr_ptr_t> elements;
+
+		{ // (expression ',')*
+			ast::expr_ptr_t expression;
+			while (
+				(expression = rule_expression()) &&
+				expect_token(TOK_COMMA)
+				)
+			{
+				elements.push_back(expression);
+				mark = m_mark;
+			}
+			m_mark = mark;
+		}
+
+		auto expressions = std::make_shared<ast::expr_seq_t>();
+		expressions->elements = elements;
+		return expressions;
+	}
+
+	auto parser_t::rule_vector() -> ast::expr_ptr_t
+	{
+		auto mark = m_mark;
+		{ // '[' (expression ',')* expression ']'
+			ast::expr_seq_ptr_t exprs;
+			ast::expr_ptr_t expr;
+			if (
+				expect_token(TOK_LSQB) &&
+				(exprs = rule_expression_commas()) &&
+				(expr = rule_expression()) &&
+				expect_token(TOK_RSQB)
+				)
+			{
+				exprs->elements.push_back(expr);
+				return ast::vector(exprs);
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	}
+
+	auto parser_t::rule_or_conjunction() -> ast::expr_seq_ptr_t
+	{
+		auto mark = m_mark;
+		auto start_mark = m_mark;
+		std::vector<ast::expr_ptr_t> elements;
+
+		{ // ('or' conjunction)+
+			ast::expr_ptr_t conjunction;
+			while (
+				expect_token(TOK_OR) &&
+				(conjunction = rule_conjunction())
+				)
+			{
+				elements.push_back(conjunction);
+				mark = m_mark;
+			}
+			m_mark = mark;
+		}
+
+		if (elements.empty())
+		{
+			return nullptr;
+		}
+
+		auto expressions = std::make_shared<ast::expr_seq_t>();
+		expressions->elements = elements;
+		return expressions;
+	}
+
+	auto parser_t::rule_and_inversion() -> ast::expr_seq_ptr_t
+	{
+		auto mark = m_mark;
+		auto start_mark = m_mark;
+		std::vector<ast::expr_ptr_t> elements;
+
+		{ // ('and' inversion)+
+			ast::expr_ptr_t inversion;
+			while (
+				expect_token(TOK_AND) &&
+				(inversion = rule_inversion())
+				)
+			{
+				elements.push_back(inversion);
+				mark = m_mark;
+			}
+			m_mark = mark;
+		}
+
+		if (elements.empty())
+		{
+			return nullptr;
+		}
+
+		auto expressions = std::make_shared<ast::expr_seq_t>();
+		expressions->elements = elements;
+		return expressions;
 	}
 
 }

@@ -32,23 +32,30 @@ namespace exprcpp::internal::ast
 
 	enum class statement_kind_e
 	{
-		expr
+		if_else, expr
 	};
 
 	struct statement_t : node_t
 	{
+		struct stmt_if_else_t
+		{
+			expr_ptr_t condition;
+			expr_ptr_t true_case;
+			expr_ptr_t false_case;
+		};
+
 		struct stmt_expr_t
 		{
 			expr_ptr_t value;
 		};
 
 		statement_kind_e kind;
-		std::variant<stmt_expr_t> value;
+		std::variant<stmt_if_else_t, stmt_expr_t> value;
 	};
 
-	enum class bool_op_type_t { And, Not };
+	enum class bool_op_type_e { And, Or };
 
-	enum class operator_type_t 
+	enum class operator_type_e 
 	{
 		add,
 		sub,
@@ -58,7 +65,7 @@ namespace exprcpp::internal::ast
 		pow
 	};
 
-	enum class unary_op_type_t
+	enum class unary_op_type_e
 	{
 		invert,
 		Not,
@@ -66,14 +73,16 @@ namespace exprcpp::internal::ast
 		sub
 	};
 
-	enum class cmp_op_type_t
+	enum class cmp_op_type_e
 	{
 		eq,
 		Not_eq,
 		lt,
 		lt_eq,
 		gt,
-		gt_eq
+		gt_eq,
+		in,
+		not_in
 	};
 
 	enum class expr_context_type_e
@@ -89,34 +98,35 @@ namespace exprcpp::internal::ast
 		cmp_op,
 		assign,
 		constant,
-		name
+		name,
+		vector
 	};
 
 	struct expression_t : node_t
 	{
 		struct expr_bool_op_t
 		{
-			bool_op_type_t op;
+			bool_op_type_e op;
 			expr_seq_ptr_t values;
 		};
 
 		struct expr_bin_op_t
 		{
 			expr_ptr_t left;
-			operator_type_t op;
+			operator_type_e op;
 			expr_ptr_t right;
 		};
 
 		struct expr_unary_op_t
 		{
-			unary_op_type_t op;
+			unary_op_type_e op;
 			expr_ptr_t right;
 		};
 
 		struct expr_cmp_op_t
 		{
 			expr_ptr_t left;
-			cmp_op_type_t op;
+			cmp_op_type_e op;
 			expr_ptr_t right;
 		};
 
@@ -137,17 +147,24 @@ namespace exprcpp::internal::ast
 			expr_context_type_e context;
 		};
 
+		struct expr_vector_t
+		{
+			expr_seq_ptr_t elements;
+		};
+
 		expression_kind_e kind;
 		std::variant<expr_bool_op_t, expr_bin_op_t, expr_unary_op_t, expr_cmp_op_t, expr_assign_t, 
-					 expr_constant_t, expr_name_t> value;
+					 expr_constant_t, expr_name_t, expr_vector_t> value;
 	};
 
+	auto if_else(const expr_ptr_t& condition, const expr_ptr_t& true_case, const expr_ptr_t& false_case) -> stmt_ptr_t;
 	auto expression(const expr_ptr_t& expr) -> stmt_ptr_t;
-	auto bool_op(bool_op_type_t op, const expr_seq_ptr_t& values) -> expr_ptr_t;
-	auto bin_op(const expr_ptr_t& left, operator_type_t op, const expr_ptr_t& right) -> expr_ptr_t;
-	auto unary_op(unary_op_type_t op, const expr_ptr_t& right) -> expr_ptr_t;
-	auto cmp_op(const expr_ptr_t& left, cmp_op_type_t op, const expr_ptr_t& right) -> expr_ptr_t;
+	auto bool_op(bool_op_type_e op, const expr_seq_ptr_t& values) -> expr_ptr_t;
+	auto bin_op(const expr_ptr_t& left, operator_type_e op, const expr_ptr_t& right) -> expr_ptr_t;
+	auto unary_op(unary_op_type_e op, const expr_ptr_t& right) -> expr_ptr_t;
+	auto cmp_op(const expr_ptr_t& left, cmp_op_type_e op, const expr_ptr_t& right) -> expr_ptr_t;
 	auto assign(const std::string& id, const expr_ptr_t& value) -> expr_ptr_t;
 	auto constant(const std::string& value) -> expr_ptr_t;
 	auto name(const std::string& id, expr_context_type_e context) -> expr_ptr_t;
+	auto vector(const expr_seq_ptr_t& elements) -> expr_ptr_t;
 }

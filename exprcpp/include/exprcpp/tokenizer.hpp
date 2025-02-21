@@ -16,6 +16,13 @@ namespace exprcpp::internal
 		TOK_NUMBER,			// Number token type
 		TOK_STRING,			// String token type
 
+		TOK_IN,				// in
+		TOK_NOT,			// not
+		TOK_IF,				// if
+		TOK_ELSE,			// else
+		TOK_AND,			// and
+		TOK_OR,				// or
+
 		/* Operator tokens */
 		TOK_OP,				// Blank operator value, often means unknown operator
 		TOK_ADD,			// +

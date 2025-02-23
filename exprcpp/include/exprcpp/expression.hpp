@@ -23,8 +23,8 @@ namespace exprcpp
 			stack_object_type_e type;
 			std::variant<T, vector_t> value;
 
-			stack_object_t(T scalar);
-			stack_object_t(vector_t vector);
+			explicit stack_object_t(T scalar);
+			explicit stack_object_t(vector_t vector);
 		};
 
 		template<typename T>
@@ -84,6 +84,8 @@ namespace exprcpp
 		auto execute_constant(const std::string& value) -> bool;
 		auto execute_name(const std::string& id, internal::ast::expr_context_type_e context) -> bool;
 		auto execute_vector(const internal::ast::expr_seq_ptr_t& elements) -> bool;
+		auto execute_call(const std::string& name, const internal::ast::expr_seq_ptr_t& args) -> bool;
+		auto execute_slice(const internal::ast::expr_ptr_t& vector, const internal::ast::expr_ptr_t& start, const internal::ast::expr_ptr_t& stop) -> bool;
 	private:
 		symbol_table_t<T> m_symbol_table;
 		internal::ast::stmt_seq_ptr_t m_ast;

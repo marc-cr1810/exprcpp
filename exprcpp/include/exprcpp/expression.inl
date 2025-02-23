@@ -431,6 +431,16 @@ namespace exprcpp
 			auto vector = std::get<internal::ast::expression_t::expr_vector_t>(expression->value);
 			return execute_vector(vector.elements);
 		}
+		case internal::ast::expression_kind_e::call:
+		{
+			auto call = std::get<internal::ast::expression_t::expr_call_t>(expression->value);
+			return execute_call(call.name, call.args);
+		}
+		case internal::ast::expression_kind_e::slice:
+		{
+			auto slice = std::get<internal::ast::expression_t::expr_slice_t>(expression->value);
+			return execute_slice(slice.vector, slice.start, slice.stop);
+		}
 		}
 
 		return false;
@@ -534,10 +544,10 @@ namespace exprcpp
 
 		switch (op)
 		{
-		case internal::ast::unary_op_type_e::invert: m_stack.push(static_cast<T>(~static_cast<uint64_t>(value))); return true;
-		case internal::ast::unary_op_type_e::Not: m_stack.push(!value); return true;
-		case internal::ast::unary_op_type_e::add: m_stack.push(+value); return true;
-		case internal::ast::unary_op_type_e::sub: m_stack.push(-value); return true;
+		case internal::ast::unary_op_type_e::invert: m_stack.push(internal::stack_object_t<T>(static_cast<T>(~static_cast<uint64_t>(value)))); return true;
+		case internal::ast::unary_op_type_e::Not: m_stack.push(internal::stack_object_t<T>(!value)); return true;
+		case internal::ast::unary_op_type_e::add: m_stack.push(internal::stack_object_t<T>(+value)); return true;
+		case internal::ast::unary_op_type_e::sub: m_stack.push(internal::stack_object_t<T>(-value)); return true;
 		}
 
 		return false;
@@ -603,7 +613,7 @@ namespace exprcpp
 				return false;
 			}
 
-			m_stack.push(m_symbol_table[id]);
+			m_stack.push(internal::stack_object_t<T>(m_symbol_table[id]));
 			return true;
 		}
 		case internal::ast::expr_context_type_e::store:
@@ -667,6 +677,133 @@ namespace exprcpp
 		}
 
 		m_stack.push(internal::stack_object_t<T>(vector_elements));
+		return true;
+	}
+
+	template<typename T>
+	auto expression_t<T>::execute_call(const std::string& name, const internal::ast::expr_seq_ptr_t& args) -> bool
+	{
+		if (!m_symbol_table.has_function(name))
+		{
+			return false;
+		}
+
+		auto func = m_symbol_table.get_function(name);
+		if (args == nullptr)
+		{
+			T value = (*func)();
+			m_stack.push(internal::stack_object_t<T>(value));
+			return true;
+		}
+		else if (args->elements.size() != func->num_args())
+		{
+			return false;
+		}
+
+		std::vector<T> arg_values;
+		for (const auto& expr : args->elements)
+		{
+			if (!execute_expression(expr))
+			{
+				return false;
+			}
+
+			const auto stack_value = m_stack.top();
+			m_stack.pop();
+			T value = stack_value.type == internal::stack_object_type_e::scalar ? std::get<T>(stack_value.value) : T(0);
+			if (stack_value.type == internal::stack_object_type_e::vector)
+			{
+				const auto vector = std::get<std::vector<T>>(stack_value.value);
+				if (vector.size() > 0)
+				{
+					value = vector[0];
+				}
+			}
+			arg_values.push_back(value);
+		}
+
+		T value = T(0);
+		switch (args->elements.size())
+		{
+		case 0: value = (*func)(); break;
+		case 1: value = (*func)(arg_values[0]); break;
+		case 2: value = (*func)(arg_values[0], arg_values[1]); break;
+		case 3: value = (*func)(arg_values[0], arg_values[1], arg_values[2]); break;
+		case 4: value = (*func)(arg_values[0], arg_values[1], arg_values[2], arg_values[3]); break;
+		default: return false;
+		}
+		
+		m_stack.push(internal::stack_object_t<T>(value));
+		return true;
+	}
+
+	template<typename T>
+	auto expression_t<T>::execute_slice(const internal::ast::expr_ptr_t& vector, const internal::ast::expr_ptr_t& start, const internal::ast::expr_ptr_t& stop) -> bool
+	{
+		if (vector == nullptr || !execute_expression(vector))
+		{
+			return false;
+		}
+
+		const auto stack_vector = m_stack.top();
+		m_stack.pop();
+		if (stack_vector.type != internal::stack_object_type_e::vector)
+		{
+			return false;
+		}
+		const auto vector_value = std::get<std::vector<T>>(stack_vector.value);
+		int start_pos = 0;
+		int end_pos = vector_value.size();
+
+		if (start != nullptr && execute_expression(start))
+		{
+			const auto stack_start = m_stack.top();
+			m_stack.pop();
+			if (stack_start.type != internal::stack_object_type_e::scalar)
+			{
+				return false;
+			}
+			start_pos = std::get<T>(stack_start.value);
+			if (start_pos < 0)
+			{
+				start_pos = vector_value.size() + start_pos;
+			}
+		}
+
+		if (stop != nullptr && execute_expression(stop))
+		{
+			const auto stack_stop = m_stack.top();
+			m_stack.pop();
+			if (stack_stop.type != internal::stack_object_type_e::scalar)
+			{
+				return false;
+			}
+			end_pos = std::get<T>(stack_stop.value);
+			if (end_pos < 0)
+			{
+				end_pos = vector_value.size() + end_pos;
+			}
+		}
+
+		if (start_pos >= end_pos)
+		{
+			return false;
+		}
+
+		size_t size = static_cast<size_t>(end_pos - start_pos);
+		if (size == 1)
+		{
+			T value = vector_value[start_pos];
+			m_stack.push(internal::stack_object_t<T>(value));
+			return true;
+		}
+		std::vector<T> values(size);
+		size_t i = 0;
+		for (size_t pos = start_pos; pos < end_pos; pos++)
+		{
+			values[i++] = vector_value[pos];
+		}
+		m_stack.push(internal::stack_object_t<T>(values));
 		return true;
 	}
 

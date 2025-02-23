@@ -43,9 +43,11 @@ namespace exprcpp::internal
 		auto rule_primary() -> ast::expr_ptr_t;
 		auto rule_atom() -> ast::expr_ptr_t;
 		auto rule_expression_commas() -> ast::expr_seq_ptr_t;
+		auto rule_arguments() -> ast::expr_seq_ptr_t;
 		auto rule_vector() -> ast::expr_ptr_t;
 		auto rule_or_conjunction() -> ast::expr_seq_ptr_t;
 		auto rule_and_inversion() -> ast::expr_seq_ptr_t;
+		auto rule_slice() -> ast::expr_ptr_t;
 	private:
 		tokenizer_t m_tokenizer;
 		std::vector<token_ptr_t> m_tokens;

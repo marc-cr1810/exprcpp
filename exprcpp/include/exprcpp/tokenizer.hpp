@@ -68,6 +68,9 @@ namespace exprcpp::internal
 		TOK_RIGHTSHIFT,		// >>
 		TOK_COLONEQUAL,		// :=
 
+		/* Triple char operator tokens */
+		TOK_LEQUALG,		// <=>
+
 		/* Miscellaneous tokens */
 		TOK_ERRORTOKEN,
 		TOK_N_TOKENS,
@@ -107,6 +110,7 @@ namespace exprcpp::internal
 
 		auto operator_one_char(const char c1) -> token_type_e;
 		auto operator_two_chars(const char c1, const char c2) -> token_type_e;
+		auto operator_three_chars(const char c1, const char c2, const char c3) -> token_type_e;
 	private:
 		const std::string m_expression_string;
 

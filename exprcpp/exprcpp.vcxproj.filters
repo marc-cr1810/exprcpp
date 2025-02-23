@@ -33,6 +33,9 @@
     <ClInclude Include="include\exprcpp\ast.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\exprcpp\function.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="include\exprcpp\symbol_table.inl">
@@ -42,6 +45,9 @@
       <Filter>Header Files</Filter>
     </None>
     <None Include="include\exprcpp.inl">
+      <Filter>Header Files</Filter>
+    </None>
+    <None Include="include\exprcpp\function.inl">
       <Filter>Header Files</Filter>
     </None>
   </ItemGroup>

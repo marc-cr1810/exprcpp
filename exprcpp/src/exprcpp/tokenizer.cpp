@@ -215,10 +215,20 @@ namespace exprcpp::internal
 			return token;
 		} 
 		{
-			int c2 = next();
+			auto c2 = next();
 			token->type = operator_two_chars(c, c2);
 			if (token->type != TOK_OP)
 			{
+				auto c3 = next();
+				auto type = operator_three_chars(c, c2, c3);
+				if (type != TOK_OP)
+				{
+					token->type = type;
+				}
+				else
+				{
+					back();
+				}
 				m_end = m_current;
 				token->value = std::string(m_start, m_end + 1);
 				return token;
@@ -436,6 +446,24 @@ namespace exprcpp::internal
 				return TOK_COLONEQUAL;
 			}
 			break;
+		}
+		return TOK_OP;
+	}
+
+	auto tokenizer_t::operator_three_chars(const char c1, const char c2, const char c3) -> token_type_e
+	{
+		switch (c1)
+		{
+		case '<':
+			switch (c2)
+			{
+			case '=':
+				switch (c3)
+				{
+				case '>':
+					return TOK_LEQUALG;
+				}
+			}
 		}
 		return TOK_OP;
 	}

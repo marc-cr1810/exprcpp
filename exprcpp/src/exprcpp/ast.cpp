@@ -122,4 +122,29 @@ namespace exprcpp::internal::ast
 		return expr;
 	}
 
+	auto call(const std::string& name, const expr_seq_ptr_t& args) -> expr_ptr_t
+	{
+		expression_t::expr_call_t call;
+		call.name = name;
+		call.args = args;
+
+		auto expr = std::make_shared<expression_t>();
+		expr->kind = expression_kind_e::call;
+		expr->value = call;
+		return expr;
+	}
+
+	auto slice(const expr_ptr_t& vector, const expr_ptr_t& start, const expr_ptr_t& stop) -> expr_ptr_t
+	{
+		expression_t::expr_slice_t slice;
+		slice.vector = vector;
+		slice.start = start;
+		slice.stop = stop;
+
+		auto expr = std::make_shared<expression_t>();
+		expr->kind = expression_kind_e::slice;
+		expr->value = slice;
+		return expr;
+	}
+
 }

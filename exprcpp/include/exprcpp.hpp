@@ -1,7 +1,8 @@
 #pragma once
 
-#include "exprcpp/symbol_table.hpp"
 #include "exprcpp/expression.hpp"
+#include "exprcpp/function.hpp"
+#include "exprcpp/symbol_table.hpp"
 
 namespace exprcpp
 {

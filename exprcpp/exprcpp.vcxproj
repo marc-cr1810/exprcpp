@@ -152,6 +152,7 @@
     <ClInclude Include="include\exprcpp.hpp" />
     <ClInclude Include="include\exprcpp\ast.hpp" />
     <ClInclude Include="include\exprcpp\expression.hpp" />
+    <ClInclude Include="include\exprcpp\function.hpp" />
     <ClInclude Include="include\exprcpp\parser.hpp" />
     <ClInclude Include="include\exprcpp\symbol_table.hpp" />
     <ClInclude Include="include\exprcpp\tokenizer.hpp" />
@@ -159,6 +160,7 @@
   <ItemGroup>
     <None Include="include\exprcpp.inl" />
     <None Include="include\exprcpp\expression.inl" />
+    <None Include="include\exprcpp\function.inl" />
     <None Include="include\exprcpp\symbol_table.inl" />
   </ItemGroup>
   <ItemGroup>

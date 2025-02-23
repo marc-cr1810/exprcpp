@@ -748,6 +748,30 @@ namespace exprcpp::internal
 	auto parser_t::raw_primary() -> ast::expr_ptr_t
 	{
 		auto mark = m_mark;
+		{ // NAME '(' arguments? ')'
+			token_ptr_t name;
+			ast::expr_seq_ptr_t args;
+			if (
+				expect_token(TOK_NAME, name) &&
+				expect_token(TOK_LPAREN) &&
+				(args = rule_arguments(), 1) &&
+				expect_token(TOK_RPAREN)
+				)
+			{
+				return ast::call(name->value, args);
+			}
+		}
+		m_mark = mark;
+		{ // slice
+			ast::expr_ptr_t slice;
+			if (
+				(slice = rule_slice())
+				)
+			{
+				return slice;
+			}
+		}
+		m_mark = mark;
 		{ // atom
 			ast::expr_ptr_t atom;
 			if (
@@ -861,6 +885,25 @@ namespace exprcpp::internal
 		return expressions;
 	}
 
+	auto parser_t::rule_arguments() -> ast::expr_seq_ptr_t
+	{
+		auto mark = m_mark;
+		{ // (expression ',')* expression
+			ast::expr_seq_ptr_t exprs;
+			ast::expr_ptr_t expr;
+			if (
+				(exprs = rule_expression_commas()) &&
+				(expr = rule_expression())
+				)
+			{
+				exprs->elements.push_back(expr);
+				return exprs;
+			}
+		}
+		m_mark = mark;
+		return nullptr;
+	}
+
 	auto parser_t::rule_vector() -> ast::expr_ptr_t
 	{
 		auto mark = m_mark;
@@ -938,6 +981,29 @@ namespace exprcpp::internal
 		auto expressions = std::make_shared<ast::expr_seq_t>();
 		expressions->elements = elements;
 		return expressions;
+	}
+
+	auto parser_t::rule_slice() -> ast::expr_ptr_t
+	{
+		auto mark = m_mark;
+		{ // primary '[' sum? ':' sum? ']'
+			ast::expr_ptr_t vector;
+			ast::expr_ptr_t start;
+			ast::expr_ptr_t stop;
+			if (
+				(vector = rule_primary()) &&
+				expect_token(TOK_LSQB) &&
+				(start = rule_sum(), 1) &&
+				expect_token(TOK_COLON) &&
+				(stop = rule_sum(), 1) &&
+				expect_token(TOK_RSQB)
+				)
+			{
+				return ast::slice(vector, start, stop);
+			}
+		}
+		m_mark = mark;
+		return nullptr;
 	}
 
 }

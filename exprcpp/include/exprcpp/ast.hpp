@@ -99,7 +99,9 @@ namespace exprcpp::internal::ast
 		assign,
 		constant,
 		name,
-		vector
+		vector,
+		call,
+		slice
 	};
 
 	struct expression_t : node_t
@@ -152,9 +154,22 @@ namespace exprcpp::internal::ast
 			expr_seq_ptr_t elements;
 		};
 
+		struct expr_call_t
+		{
+			std::string name;
+			expr_seq_ptr_t args;
+		};
+
+		struct expr_slice_t
+		{
+			expr_ptr_t vector;
+			expr_ptr_t start;
+			expr_ptr_t stop;
+		};
+
 		expression_kind_e kind;
 		std::variant<expr_bool_op_t, expr_bin_op_t, expr_unary_op_t, expr_cmp_op_t, expr_assign_t, 
-					 expr_constant_t, expr_name_t, expr_vector_t> value;
+					 expr_constant_t, expr_name_t, expr_vector_t, expr_call_t, expr_slice_t> value;
 	};
 
 	auto if_else(const expr_ptr_t& condition, const expr_ptr_t& true_case, const expr_ptr_t& false_case) -> stmt_ptr_t;
@@ -167,4 +182,6 @@ namespace exprcpp::internal::ast
 	auto constant(const std::string& value) -> expr_ptr_t;
 	auto name(const std::string& id, expr_context_type_e context) -> expr_ptr_t;
 	auto vector(const expr_seq_ptr_t& elements) -> expr_ptr_t;
+	auto call(const std::string& name, const expr_seq_ptr_t& args) -> expr_ptr_t;
+	auto slice(const expr_ptr_t& vector, const expr_ptr_t& start, const expr_ptr_t& stop) -> expr_ptr_t;
 }
